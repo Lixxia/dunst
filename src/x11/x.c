@@ -111,8 +111,6 @@ static void x_win_round_corners(struct window_x11 *win, const int rad)
         /* To mark all pixels, which should get exposed, we
          * use a circle for every corner and two overlapping rectangles */
         unsigned const int centercoords[] = {
-                0,               0,
-                width - dia - 1, 0,
                 0,               height - dia - 1,
                 width - dia - 1, height - dia - 1,
         };
@@ -132,9 +130,9 @@ static void x_win_round_corners(struct window_x11 *win, const int rad)
                        mask,
                        shape_gc,
                        rad,
-                       0,
+                       0+dia,
                        width-dia,
-                       height);
+                       height-dia);
         XFillRectangle(xctx.dpy,
                        mask,
                        shape_gc,
