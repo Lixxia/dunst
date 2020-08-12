@@ -107,7 +107,7 @@ static void x_win_corners_shape(struct window_x11 *win, const int rad)
         cairo_paint(cr);
         cairo_set_source_rgba(cr, 1, 1, 1, 1);
 
-        draw_rounded_rect(cr, 0, 0,
+        draw_rounded_rect(cr, 0, 10,
                           width, height,
                           rad,
                           true, true);
