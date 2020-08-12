@@ -176,6 +176,11 @@ void load_settings(char *cmdline_config_path)
                 "word_wrap", "-word_wrap", defaults.word_wrap,
                 "Truncating long lines or do word wrap"
         );
+        settings.ignore_dbusclose = option_get_bool(
+                "global",
+                "ignore_dbusclose", "-ignore_dbusclose", defaults.ignore_dbusclose,
+                "Ignore dbus CloseNotification events"
+        );
 
         {
                 char *c = option_get_string(
@@ -423,6 +428,27 @@ void load_settings(char *cmdline_config_path)
                 g_free(c);
         }
 
+        {
+                char *c = option_get_string(
+                        "global",
+                        "vertical_alignment", "-vertical_alignment", "center",
+                        "Align icon and text top/center/bottom"
+                );
+                if (!string_parse_vertical_alignment(c, &settings.vertical_alignment)) {
+                        if (c)
+                                LOG_W("Unknown vertical alignment: '%s'", c);
+                        settings.vertical_alignment = defaults.vertical_alignment;
+                }
+                g_free(c);
+
+        }
+
+        settings.min_icon_size = option_get_int(
+                "global",
+                "min_icon_size", "-min_icon_size", defaults.min_icon_size,
+                "Scale smaller icons up to this size, set to 0 to disable. If max_icon_size also specified, that has the final say."
+        );
+
         settings.max_icon_size = option_get_int(
                 "global",
                 "max_icon_size", "-max_icon_size", defaults.max_icon_size,
@@ -508,48 +534,42 @@ void load_settings(char *cmdline_config_path)
         }
 
         {
-                char *c = option_get_string(
+                char **c = option_get_list(
                         "global",
-                        "mouse_left_click", "-left_click", NULL,
+                        "mouse_left_click", "-mouse_left_click", NULL,
                         "Action of Left click event"
                 );
 
-                if (!string_parse_mouse_action(c, &settings.mouse_left_click)) {
-                        if (c)
-                                LOG_W("Unknown mouse action value: '%s'", c);
+                if (!string_parse_mouse_action_list(c, &settings.mouse_left_click)) {
                         settings.mouse_left_click = defaults.mouse_left_click;
                 }
-                g_free(c);
+                free_string_array(c);
         }
 
         {
-                char *c = option_get_string(
+                char **c = option_get_list(
                         "global",
                         "mouse_middle_click", "-mouse_middle_click", NULL,
                         "Action of middle click event"
                 );
 
-                if (!string_parse_mouse_action(c, &settings.mouse_middle_click)) {
-                        if (c)
-                                LOG_W("Unknown mouse action value: '%s'", c);
+                if (!string_parse_mouse_action_list(c, &settings.mouse_middle_click)) {
                         settings.mouse_middle_click = defaults.mouse_middle_click;
                 }
-                g_free(c);
+                free_string_array(c);
         }
 
         {
-                char *c = option_get_string(
+                char **c = option_get_list(
                         "global",
                         "mouse_right_click", "-mouse_right_click", NULL,
                         "Action of right click event"
                 );
 
-                if (!string_parse_mouse_action(c, &settings.mouse_right_click)) {
-                        if (c)
-                                LOG_W("Unknown mouse action value: '%s'", c);
+                if (!string_parse_mouse_action_list(c, &settings.mouse_right_click)) {
                         settings.mouse_right_click = defaults.mouse_right_click;
                 }
-                g_free(c);
+                free_string_array(c);
         }
 
         settings.colors_low.bg = option_get_string(

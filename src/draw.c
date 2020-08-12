@@ -9,6 +9,7 @@
 #include <pango/pango-layout.h>
 #include <pango/pango-types.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include "dunst.h"
 #include "icon.h"
@@ -33,6 +34,8 @@ struct window_x11 *win;
 
 PangoFontDescription *pango_fdesc;
 
+#define UINT_MAX_N(bits) ((1 << bits) - 1)
+
 void draw_setup(void)
 {
         x_setup();
@@ -41,12 +44,16 @@ void draw_setup(void)
         pango_fdesc = pango_font_description_from_string(settings.font);
 }
 
-static struct color hex_to_color(int hexValue)
+static struct color hex_to_color(uint32_t hexValue, int dpc)
 {
+        const int bpc = 4 * dpc;
+        const unsigned single_max = UINT_MAX_N(bpc);
+
         struct color ret;
-        ret.r = ((hexValue >> 16) & 0xFF) / 255.0;
-        ret.g = ((hexValue >> 8) & 0xFF) / 255.0;
-        ret.b = ((hexValue) & 0xFF) / 255.0;
+        ret.r = ((hexValue >> 3 * bpc) & single_max) / (double)single_max;
+        ret.g = ((hexValue >> 2 * bpc) & single_max) / (double)single_max;
+        ret.b = ((hexValue >> 1 * bpc) & single_max) / (double)single_max;
+        ret.a = ((hexValue)            & single_max) / (double)single_max;
 
         return ret;
 }
@@ -54,15 +61,24 @@ static struct color hex_to_color(int hexValue)
 static struct color string_to_color(const char *str)
 {
         char *end;
-        long int val = strtol(str+1, &end, 16);
-        if (*end != '\0' && *(end+1) != '\0') {
+        uint_fast32_t val = strtoul(str+1, &end, 16);
+        if (end[0] != '\0' && end[1] != '\0') {
                 LOG_W("Invalid color string: '%s'", str);
         }
 
-        return hex_to_color(val);
+        switch (end - (str+1)) {
+                case 3:  return hex_to_color((val << 4) | 0xF, 1);
+                case 6:  return hex_to_color((val << 8) | 0xFF, 2);
+                case 4:  return hex_to_color(val, 1);
+                case 8:  return hex_to_color(val, 2);
+        }
+
+        /* return black on error */
+        LOG_W("Invalid color string: '%s'", str);
+        return hex_to_color(0xF, 1);
 }
 
-static double color_apply_delta(double base, double delta)
+static inline double color_apply_delta(double base, double delta)
 {
         base += delta;
         if (base > 1)
@@ -388,12 +404,38 @@ static int layout_get_height(struct colored_layout *cl)
         return MAX(h, h_icon);
 }
 
+/* Attempt to make internal radius more organic.
+ * Simple r-w is not enough for too small r/w ratio.
+ * simplifications: r/2 == r - w + w*w / (r * 2) with (w == r)
+ * r, w - corner radius & frame width,
+ * h  - box height
+ */
+static int frame_internal_radius (int r, int w, int h)
+{
+        if (r == 0 || w == 0 || h == 0)
+                return 0;
+
+        // Integer precision scaler, using 1/4 of int size
+        const int s = 2 << (8 * sizeof(int) / 4);
+
+        int r1, r2, ret;
+        h *= s;
+        r *= s;
+        w *= s;
+        r1 = r - w + w * w / (r * 2);    // w  <  r
+        r2 = r * h / (h + (w - r) * 2);  // w  >= r
+
+        ret = (r > w) ? r1 : (r / 2 < r2) ? r / 2 : r2;
+
+        return ret / s;
+}
+
 /**
  * Create a path on the given cairo context to draw the background of a notification.
  * The top corners will get rounded by `corner_radius`, if `first` is set.
  * Respectably the same for `last` with the bottom corners.
  */
-static void draw_rounded_rect(cairo_t *c, int x, int y, int width, int height, int corner_radius, bool first, bool last)
+void draw_rounded_rect(cairo_t *c, int x, int y, int width, int height, int corner_radius, bool first, bool last)
 {
         const float degrees = M_PI / 180.0;
 
@@ -454,8 +496,15 @@ static cairo_surface_t *render_background(cairo_surface_t *srf,
                                           int *ret_width)
 {
         int x = 0;
+        int radius_int = corner_radius;
 
         cairo_t *c = cairo_create(srf);
+
+        /* stroke area doesn't intersect with main area */
+        cairo_set_fill_rule(c, CAIRO_FILL_RULE_EVEN_ODD);
+
+        /* for correct combination of adjacent areas */
+        cairo_set_operator(c, CAIRO_OPERATOR_ADD);
 
         if (first)
                 height += settings.frame_width;
@@ -464,9 +513,7 @@ static cairo_surface_t *render_background(cairo_surface_t *srf,
         else
                 height += settings.separator_height;
 
-        cairo_set_source_rgb(c, cl->frame.r, cl->frame.g, cl->frame.b);
         draw_rounded_rect(c, x, y, width, height, corner_radius, first, last);
-        cairo_fill(c);
 
         /* adding frame */
         x += settings.frame_width;
@@ -482,15 +529,23 @@ static cairo_surface_t *render_background(cairo_surface_t *srf,
         else
                 height -= settings.separator_height;
 
-        cairo_set_source_rgb(c, cl->bg.r, cl->bg.g, cl->bg.b);
-        draw_rounded_rect(c, x, y, width, height, corner_radius, first, last);
+        radius_int = frame_internal_radius(corner_radius, settings.frame_width, height);
+
+        draw_rounded_rect(c, x, y, width, height, radius_int, first, last);
+        cairo_set_source_rgba(c, cl->frame.r, cl->frame.g, cl->frame.b, cl->frame.a);
         cairo_fill(c);
+
+        draw_rounded_rect(c, x, y, width, height, radius_int, first, last);
+        cairo_set_source_rgba(c, cl->bg.r, cl->bg.g, cl->bg.b, cl->bg.a);
+        cairo_fill(c);
+
+        cairo_set_operator(c, CAIRO_OPERATOR_SOURCE);
 
         if (   settings.sep_color.type != SEP_FRAME
             && settings.separator_height > 0
             && !last) {
                 struct color sep_color = layout_get_sepcolor(cl, cl_next);
-                cairo_set_source_rgb(c, sep_color.r, sep_color.g, sep_color.b);
+                cairo_set_source_rgba(c, sep_color.r, sep_color.g, sep_color.b, sep_color.a);
 
                 cairo_rectangle(c, settings.frame_width, y + height, width, settings.separator_height);
 
@@ -511,33 +566,52 @@ static void render_content(cairo_t *c, struct colored_layout *cl, int width)
         int h_text;
         pango_layout_get_pixel_size(cl->l, NULL, &h_text);
 
-        if (cl->icon && settings.icon_position == ICON_LEFT) {
-                cairo_move_to(c, cairo_image_surface_get_width(cl->icon) + 2 * settings.h_padding,
-                                 settings.padding + h/2 - h_text/2);
-        } else if (cl->icon && settings.icon_position == ICON_RIGHT) {
-                cairo_move_to(c, settings.h_padding, settings.padding + h/2 - h_text/2);
-        } else {
-                cairo_move_to(c, settings.h_padding, settings.padding);
-        }
+        int text_x = settings.h_padding,
+            text_y = settings.padding + h / 2 - h_text / 2;
 
-        cairo_set_source_rgb(c, cl->fg.r, cl->fg.g, cl->fg.b);
+        // text positioning
+        if (cl->icon) {
+                // vertical alignment
+                if (settings.vertical_alignment == VERTICAL_TOP) {
+                        text_y = settings.padding;
+                } else if (settings.vertical_alignment == VERTICAL_BOTTOM) {
+                        text_y = h + settings.padding - h_text;
+                        if (text_y < 0)
+                                text_y = settings.padding;
+                } // else VERTICAL_CENTER
+
+                // icon position
+                if (settings.icon_position == ICON_LEFT) {
+                        text_x = cairo_image_surface_get_width(cl->icon) + 2 * settings.h_padding;
+                } // else ICON_RIGHT
+        }
+        cairo_move_to(c, text_x, text_y);
+
+        cairo_set_source_rgba(c, cl->fg.r, cl->fg.g, cl->fg.b, cl->fg.a);
         pango_cairo_update_layout(c, cl->l);
         pango_cairo_show_layout(c, cl->l);
 
 
+        // icon positioning
         if (cl->icon) {
                 unsigned int image_width = cairo_image_surface_get_width(cl->icon),
                              image_height = cairo_image_surface_get_height(cl->icon),
-                             image_x,
+                             image_x = width - settings.h_padding - image_width,
                              image_y = settings.padding + h/2 - image_height/2;
 
+                // vertical alignment
+                if (settings.vertical_alignment == VERTICAL_TOP) {
+                        image_y = settings.padding;
+                } else if (settings.vertical_alignment == VERTICAL_BOTTOM) {
+                        image_y = h + settings.padding - image_height;
+                        if (image_y < settings.padding || image_y > h)
+                                image_y = settings.padding;
+                } // else VERTICAL_CENTER
+
+                // icon position
                 if (settings.icon_position == ICON_LEFT) {
                         image_x = settings.h_padding;
-                } else if (settings.icon_position == ICON_RIGHT){
-                        image_x = width - settings.h_padding - image_width;
-                } else {
-                        LOG_E("Tried to draw icon but icon position is not valid. %s:%d", __FILE__, __LINE__);
-                }
+                } // else ICON_RIGHT
 
                 cairo_set_source_surface(c, cl->icon, image_x, image_y);
                 cairo_rectangle(c, image_x, image_y, image_width, image_height);

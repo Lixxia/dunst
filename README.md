@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/dunst-project/dunst/tree/master.svg?style=svg)](https://circleci.com/gh/dunst-project/dunst/tree/master) [![Build Status](https://travis-ci.org/dunst-project/dunst.svg?branch=master)](https://travis-ci.org/dunst-project/dunst) [![Coverage Status](https://coveralls.io/repos/github/dunst-project/dunst/badge.svg?branch=master)](https://coveralls.io/github/dunst-project/dunst?branch=master)
+[![main](https://github.com/dunst-project/dunst/workflows/main/badge.svg)](https://github.com/dunst-project/dunst/actions?query=workflow%3Amain) [![codecov](https://codecov.io/gh/dunst-project/dunst/branch/master/graph/badge.svg)](https://codecov.io/gh/dunst-project/dunst)
 
 ## Dunst
 
@@ -25,6 +25,7 @@ Dunst has a number of build dependencies that must be present before attempting 
 - glib
 - pango/cairo
 - libgtk-3-dev
+- libnotify (for dunstify only)
 
 ### Building
 

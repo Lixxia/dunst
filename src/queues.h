@@ -24,7 +24,7 @@ void queues_init(void);
  *
  * @return read only list of notifications
  */
-const GList *queues_get_displayed(void);
+GList *queues_get_displayed(void);
 
 /**
  * Get the highest notification in line
@@ -144,6 +144,17 @@ void queues_update(struct dunst_status status);
  *             - notification's age threshold is hit
  */
 gint64 queues_get_next_datachange(gint64 time);
+
+/**
+ * Get the notification which has the given id in the displayed and waiting queue or
+ * NULL if not found
+ *
+ * @param the id searched for.
+ *
+ * @return the `id` notification  or NULL
+ */
+struct notification* queues_get_by_id(int id);
+
 
 /**
  * Remove all notifications from all list and free the notifications

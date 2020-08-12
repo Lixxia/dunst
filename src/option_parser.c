@@ -103,6 +103,18 @@ bool string_parse_icon_position(const char *s, enum icon_position *ret)
         return false;
 }
 
+bool string_parse_vertical_alignment(const char *s, enum vertical_alignment *ret)
+{
+        ASSERT_OR_RET(STR_FULL(s), false);
+        ASSERT_OR_RET(ret, false);
+
+        STRING_PARSE_RET("top",     VERTICAL_TOP);
+        STRING_PARSE_RET("center",  VERTICAL_CENTER);
+        STRING_PARSE_RET("bottom",  VERTICAL_BOTTOM);
+
+        return false;
+}
+
 bool string_parse_markup_mode(const char *s, enum markup_mode *ret)
 {
         ASSERT_OR_RET(STR_FULL(s), false);
@@ -127,6 +139,27 @@ bool string_parse_mouse_action(const char *s, enum mouse_action *ret)
         STRING_PARSE_RET("close_all",      MOUSE_CLOSE_ALL);
 
         return false;
+}
+
+bool string_parse_mouse_action_list(char **s, enum mouse_action **ret)
+{
+        ASSERT_OR_RET(s, false);
+        ASSERT_OR_RET(ret, false);
+
+        int len = 0;
+        while (s[len])
+                len++;
+
+        *ret = g_malloc_n((len + 1), sizeof(enum mouse_action));
+        for (int i = 0; i < len; i++) {
+                if (!string_parse_mouse_action(s[i], *ret + i)) {
+                        LOG_W("Unknown mouse action value: '%s'", s[i]);
+                        g_free(*ret);
+                        return false;
+                }
+        }
+        (*ret)[len] = -1; // sentinel end value
+        return true;
 }
 
 bool string_parse_sepcolor(const char *s, struct separator_color_data *ret)
@@ -246,6 +279,15 @@ gint64 ini_get_time(const char *section, const char *key, gint64 def)
         }
 
         return val;
+}
+
+char **ini_get_list(const char *section, const char *key, const char *def)
+{
+        const char *value = get_value(section, key);
+        if (value)
+                return string_to_array(value);
+        else
+                return string_to_array(def);
 }
 
 int ini_get_int(const char *section, const char *key, int def)
@@ -463,6 +505,17 @@ char *cmdline_get_path(const char *key, const char *def, const char *description
                 return string_to_path(g_strdup(def));
 }
 
+char **cmdline_get_list(const char *key, const char *def, const char *description)
+{
+        cmdline_usage_append(key, "list", description);
+        const char *str = cmdline_get_value(key);
+
+        if (str)
+                return string_to_array(str);
+        else
+                return string_to_array(def);
+}
+
 gint64 cmdline_get_time(const char *key, gint64 def, const char *description)
 {
         cmdline_usage_append(key, "time", description);
@@ -560,6 +613,23 @@ gint64 option_get_time(const char *ini_section,
 {
         gint64 ini_val = ini_get_time(ini_section, ini_key, def);
         return cmdline_get_time(cmdline_key, ini_val, description);
+}
+
+
+char **option_get_list(const char *ini_section,
+                       const char *ini_key,
+                       const char *cmdline_key,
+                       const char *def,
+                       const char *description)
+{
+        char **val = NULL;
+        if (cmdline_key)
+                val = cmdline_get_list(cmdline_key, NULL, description);
+
+        if (val)
+                return val;
+        else
+                return ini_get_list(ini_section, ini_key, def);
 }
 
 int option_get_int(const char *ini_section,

@@ -44,8 +44,12 @@ void rule_apply(struct rule *r, struct notification *n)
         }
         if (r->format)
                 n->format = r->format;
-        if (r->script)
-                n->script = r->script;
+        if (r->script){
+                n->scripts = g_renew(const char*,n->scripts,n->script_count + 1);
+                n->scripts[n->script_count] = r->script;
+
+                n->script_count++;
+        }
         if (r->set_stack_tag) {
                 g_free(n->stack_tag);
                 n->stack_tag = g_strdup(r->set_stack_tag);
@@ -74,7 +78,7 @@ struct rule *rule_new(void)
         r->urgency = URG_NONE;
         r->fullscreen = FS_NULL;
         r->markup = MARKUP_NULL;
-        r->history_ignore = false;
+        r->history_ignore = -1;
         r->match_transient = -1;
         r->set_transient = -1;
         r->skip_display = -1;

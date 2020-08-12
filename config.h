@@ -33,10 +33,12 @@ struct settings defaults = {
 .idle_threshold = 0,         /* don't timeout notifications when idle for x seconds */
 .show_age_threshold = -1,    /* show age of notification, when notification is older than x seconds */
 .align = ALIGN_LEFT,         /* text alignment ALIGN_[LEFT|CENTER|RIGHT] */
+.vertical_alignment = VERTICAL_CENTER,  /* vertical content alignment VERTICAL_[TOP|CENTER|BOTTOM] */
 .sticky_history = true,
 .history_length = 20,        /* max amount of notifications kept in history */
 .show_indicators = true,
 .word_wrap = false,
+.ignore_dbusclose = false,
 .ellipsize = ELLIPSE_MIDDLE,
 .ignore_newline = false,
 .line_height = 0,            /* if line height < font height, it will be raised to font height */
@@ -65,6 +67,7 @@ struct settings defaults = {
 
 .browser = "/usr/bin/firefox",
 
+.min_icon_size = 0,
 .max_icon_size = 0,
 
 /* paths to default icons */
@@ -101,11 +104,11 @@ struct settings defaults = {
         .code = 0,.sym = NoSymbol,.is_valid = false
 },                              /* ignore this */
 
-.mouse_left_click = MOUSE_CLOSE_CURRENT,
+.mouse_left_click = (enum mouse_action []){MOUSE_CLOSE_CURRENT, -1},
 
-.mouse_middle_click = MOUSE_DO_ACTION,
+.mouse_middle_click = (enum mouse_action []){MOUSE_DO_ACTION, -1},
 
-.mouse_right_click = MOUSE_CLOSE_ALL,
+.mouse_right_click = (enum mouse_action []){MOUSE_CLOSE_ALL, -1},
 
 };
 

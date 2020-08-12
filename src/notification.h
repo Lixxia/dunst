@@ -62,7 +62,8 @@ struct notification {
 
         enum markup_mode markup;
         const char *format;
-        const char *script;
+        const char **scripts;
+        int script_count;
         struct notification_colors colors;
 
         char *stack_tag;    /**< stack notifications by tag */
@@ -190,6 +191,15 @@ void notification_update_text_to_render(struct notification *n);
  * there are no actions, proceed similarly with urls.
  */
 void notification_do_action(const struct notification *n);
+
+/**
+ * Remove all client action data from the notification.
+ *
+ * This should be called after a notification is closed to avoid showing
+ * actions that will not work anymore since the client has stopped listening
+ * for them.
+ */
+void notification_invalidate_actions(struct notification *n);
 
 const char *notification_urgency_to_string(const enum urgency urgency);
 
